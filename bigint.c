@@ -4,14 +4,10 @@
 **/
 
 #include <ctype.h>
-#include <stddef.h>
-#include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
-#include <assert.h>
-#include <limits.h>
 #include "bigint.h"
 
 #define BIGINT_BLOCK_BIT_SIZE (sizeof(unsigned int) * 8)
