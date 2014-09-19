@@ -2,6 +2,8 @@
 #define BIGINT_H
 
 typedef struct bigint_t bigint_t;
+typedef void (*bigint_bitwise_callback_t)(bigint_t*, bigint_t*, bigint_t*, unsigned int);
+
 
 bigint_t *bigint(int n);
 void bigint_free(bigint_t *a);
