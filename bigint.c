@@ -12,46 +12,15 @@
 #include <math.h>
 #include <assert.h>
 #include <limits.h>
+#include "bigint.h"
+
 #define BIGINT_BLOCK_BIT_SIZE (sizeof(unsigned int) * 8)
 
-typedef struct bigint_t {
+struct bigint_t {
 	signed char sign;
 	size_t size;
 	unsigned int *data;
-} bigint_t;
-
-typedef void (*bigint_bitwise_callback_t)(bigint_t*, bigint_t*, bigint_t*, unsigned int);
-
-
-bigint_t *bigint(int n);
-void bigint_free(bigint_t *a);
-bigint_t *bigint_clone(bigint_t *a);
-bigint_t *bigint_shift_left(bigint_t *a, unsigned int n_shifts);
-bigint_t *bigint_shift_right(bigint_t *a, unsigned int n_shifts);
-void bigint_set_bit(bigint_t *dst, unsigned int bit_index, unsigned int bit_value);
-unsigned int bigint_get_bit(bigint_t *a, unsigned int bit_index);
-unsigned int bigint_degree(bigint_t *a);
-int bigint_compare(bigint_t *a, bigint_t *b);
-bigint_t *bigint_mul(bigint_t *a, bigint_t *b);
-bigint_t *bigint_sub(bigint_t *a, bigint_t *b);
-bigint_t *bigint_divrem(bigint_t *dividend, bigint_t *divisor, bigint_t* *remainder);
-bigint_t *bigint_add(bigint_t *a, bigint_t *b);
-void bigint_to_string(bigint_t *a, unsigned int base, char *dst);
-bigint_t *bigint_from_string(char *a, unsigned int base);
-bigint_t *bigint_factorial(bigint_t *a);
-bigint_t *bigint_xor(bigint_t *a, bigint_t *b);
-bigint_t *bigint_and(bigint_t *a, bigint_t *b);
-bigint_t *bigint_or(bigint_t *a, bigint_t *b);
-bigint_t *bigint_not(bigint_t *a);
-
-static void bigint_allocate_block(bigint_t *a, unsigned int n);
-static void bigint_xor_bit_mutable(bigint_t *dst, unsigned int bit_index, unsigned int bit_value);
-static bigint_t *bigint_apply_bitwise_function(bigint_t *a, bigint_t *b, bigint_bitwise_callback_t callback);
-static void bigint_xor_callback(bigint_t *dst, bigint_t *a, bigint_t *b, unsigned int bit_index);
-static void bigint_and_callback(bigint_t *dst, bigint_t *a, bigint_t *b, unsigned int bit_index);
-static void bigint_or_callback(bigint_t *dst, bigint_t *a, bigint_t *b, unsigned int bit_index);
-static bigint_t *bigint_shift_left_fast(bigint_t *a, unsigned int n_shifts);
-static bigint_t *bigint_shift_right_fast(bigint_t *a, unsigned int n_shifts);
+};
 
 
 /*
@@ -349,14 +318,14 @@ bigint_t *bigint_mul(bigint_t *a, bigint_t *b) {
 
 	dst = bigint(0);
 
-	for(b_i = 0;b_i < b->size  *BIGINT_BLOCK_BIT_SIZE;b_i++) {
+	for(b_i = 0;b_i < b->size * BIGINT_BLOCK_BIT_SIZE;b_i++) {
 		if(!bigint_get_bit(b, b_i)) continue;
-		for(a_i = 0;a_i < a->size  *BIGINT_BLOCK_BIT_SIZE;a_i++) {
+		for(a_i = 0;a_i < a->size * BIGINT_BLOCK_BIT_SIZE;a_i++) {
 			if(!bigint_get_bit(a, a_i)) continue;
 			c_i = b_i + a_i;
 
 			/* set all "1" bits to "0" until we find a "0" */
-			for(c_i = b_i + a_i;c_i < dst->size  *BIGINT_BLOCK_BIT_SIZE && bigint_get_bit(dst, c_i);c_i++) {
+			for(c_i = b_i + a_i;c_i < dst->size * BIGINT_BLOCK_BIT_SIZE && bigint_get_bit(dst, c_i);c_i++) {
 				bigint_xor_bit_mutable(dst, c_i, 1);
 			}
 			/* set the "0" to "1" (our carry...) */
