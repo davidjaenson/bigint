@@ -1,6 +1,6 @@
 /**
 * An implementation of immutable arbitrarily large integers.
-* Negative numbers round towards zero and not towards negative infinity.
+* Rounds towards negative inf
 **/
 
 #include <ctype.h>
@@ -173,7 +173,7 @@ bigint_t *bigint_shift_left(bigint_t *a, unsigned int n_shifts) {
 	}
 
 	dst = bigint(0);
-	for(i = 0;i < a->size  *BIGINT_BLOCK_BIT_SIZE;i++) {
+	for(i = 0;i < a->size * BIGINT_BLOCK_BIT_SIZE;i++) {
 		if(bigint_get_bit(a, i)) {
 			bigint_xor_bit_mutable(dst, (i + n_shifts), 1);
 		}
@@ -203,8 +203,8 @@ bigint_t *bigint_shift_right(bigint_t *a, unsigned int n_shifts) {
 	}
 
 	dst = bigint(0);
-	for(i = a->size  *BIGINT_BLOCK_BIT_SIZE;i >= 0;i--) {
-		if(bigint_get_bit(a, i) && i - n_shifts >= 0) {
+	for(i = a->size * BIGINT_BLOCK_BIT_SIZE;i >= n_shifts;i--) {
+		if(bigint_get_bit(a, i)) {
 			bigint_xor_bit_mutable(dst, (i - n_shifts), 1);
 		}
 	}
@@ -237,7 +237,7 @@ unsigned int bigint_get_bit(bigint_t *a, unsigned int bit_index) {
 unsigned int bigint_degree(bigint_t *a) {
 	int i;
 
-	for(i = a->size  *BIGINT_BLOCK_BIT_SIZE;i >= 0;i--) {
+	for(i = a->size * BIGINT_BLOCK_BIT_SIZE;i >= 0;i--) {
 		if(bigint_get_bit(a, i)) {
 			return i;
 		}
@@ -259,7 +259,13 @@ int bigint_compare(bigint_t *a, bigint_t *b) {
 	a_degree = bigint_degree(a);
 	b_degree = bigint_degree(b);
 
-	/*if(a->sign != b->sign) return a->sign == '+' ? 1 : -1;*/
+	if(a->sign != b->sign) {
+		if(a_degree == 0 && b_degree == 0) {
+			return 0;
+		} else {	
+			return a->sign == '+' ? 1 : -1;
+		}
+	}
 
 	if(a_degree > b_degree) {
 		return 1;
@@ -267,7 +273,7 @@ int bigint_compare(bigint_t *a, bigint_t *b) {
 		return -1;
 	}
 
-	for(i = a->size  *BIGINT_BLOCK_BIT_SIZE;i >= 0;i--) {
+	for(i = a->size * BIGINT_BLOCK_BIT_SIZE;i >= 0;i--) {
 		if(bigint_get_bit(a, i) && !bigint_get_bit(b, i)) {
 			return 1;
 		} else if(bigint_get_bit(b, i) && !bigint_get_bit(a, i)) {
@@ -406,14 +412,24 @@ bigint_t *bigint_divrem(bigint_t *dividend, bigint_t *divisor, bigint_t* *remain
 	bigint_t *quotient;
 	bigint_t *tmp;
 	bigint_t *shifted_divisor;
+	bigint_t *zero;
+	bigint_t *one;
 	int shift = 0;
+
+	quotient = bigint(0);
+	zero = bigint(0);
+	one = bigint(1);
+
+	if(bigint_compare(divisor, zero) == 0) {
+		/* division by zero! what should we do!?*/
+		return NULL;
+	}
 
 	(*remainder) = bigint_clone(dividend);
 	(*remainder)->sign = '+';
-	quotient = bigint(0);
 
 	if(bigint_compare(*remainder, divisor) < 0) {
-		return quotient;
+		return dividend->sign != divisor->sign ? bigint(-1) : bigint(0);
 	}
 
 	shift = bigint_degree(dividend) - bigint_degree(divisor);
@@ -444,7 +460,17 @@ bigint_t *bigint_divrem(bigint_t *dividend, bigint_t *divisor, bigint_t* *remain
 	bigint_free(shifted_divisor);
 	
 	quotient->sign = dividend->sign != divisor->sign ? '-' : '+';
-	(*remainder)->sign = dividend->sign != divisor->sign ? '-' : '+';
+	(*remainder)->sign = dividend->sign == '-' || divisor->sign == '-' ? '-' : '+';
+	if(bigint_compare(*remainder, zero) != 0 && dividend->sign != divisor->sign) {
+		tmp = bigint_sub(quotient, one);
+		bigint_free(quotient);
+		quotient = tmp;
+
+		tmp = divisor->sign == '+' ? bigint_add(*remainder, divisor) : bigint_sub(*remainder, divisor);
+		bigint_free(*remainder);
+		*remainder = tmp;
+	}
+	
 	return quotient;
 }
 
@@ -602,15 +628,17 @@ void bigint_to_string(bigint_t *a, unsigned int base, char *dst) {
 
 
 	dividend = bigint_clone(a);
+	dividend->sign = '+';
 	divisor = bigint(base);
+	divisor->sign = '+';
 	if(a->sign == '-') (*dst++) = '-';
 	cpy_dst = dst;
+	int i = 0;
 	while(bigint_compare_abs(dividend, zero) != 0) {
 		tmp = bigint_divrem(dividend, divisor, &remainder);
 		bigint_free(dividend);
 		dividend = tmp;
 		*(cpy_dst++) = span[remainder->data[0]];
-
 		bigint_free(remainder);
 	}
 
@@ -638,6 +666,7 @@ void bigint_to_string(bigint_t *a, unsigned int base, char *dst) {
 */
 bigint_t *bigint_from_string(char *a, unsigned int base) {
 	int i;
+
 	int a_length;
 	bigint_t *tmp;
 	bigint_t *tmp_number;
@@ -647,7 +676,9 @@ bigint_t *bigint_from_string(char *a, unsigned int base) {
 	multiplicator = bigint(base);
 	dst = bigint(0);
 	a_length = strlen(a);
-	for(i = 0;i < a_length;i++) {
+	i = (a[0] == '-' ? 1 : 0);
+
+	for(i;i < a_length;i++) {
 		tmp = bigint_mul(dst, multiplicator);
 		bigint_free(dst);
 		dst = tmp;
@@ -662,6 +693,8 @@ bigint_t *bigint_from_string(char *a, unsigned int base) {
 	}
 
 	bigint_free(multiplicator);
+
+	dst->sign = a[0] == '-' ? '-' : '+';
 	return dst;
 }
 
